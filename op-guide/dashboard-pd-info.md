@@ -94,6 +94,6 @@ category: monitoring
     - Region schedule push：PD 向 TiKV 发送的调度命令的个数
     - 99% Region heartbeat latency：99% 的情况下，心跳的延迟
 
-## 图例
+<!-- ## 图例 -->
 
-![PD Dashboard](../media/pd_dashboard.png)
+<!-- ![PD Dashboard](../media/pd_dashboard.png) -->
