@@ -84,7 +84,7 @@ category: monitoring
     - Raft term：当前 Raft 的 term
     - Raft committed index：最后一次 commit 的 Raft index
     - Raft applied index：最后一次 apply 的 Raft index
-- TiDB 
+- TiDB
     - Handle requests count：TiDB 的请求数量
     - Handle requests duration：每个请求所花费的时间，99% 的情况下，应该小于 100ms
 - Heartbeat
