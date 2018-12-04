@@ -5,7 +5,7 @@ category: advanced
 
 # TiDB-Binlog 部署方案
 
-本文档介绍如何部署 Kafka 版本的 TiDB-Binlog。如需部署 local 版本的 TiDB-Binlog，可参考 [local 版本的 TiDB-Binlog 部署文档](../tools/tidb-binlog.md)。
+本文档介绍如何部署 Kafka 版本的 TiDB-Binlog。
 
 ## TiDB-Binlog 简介
 
@@ -40,21 +40,27 @@ Kafka 集群用来存储由 Pump 写入的 Binlog 数据，并提供给 Drainer 
 
 ## TiDB-Binlog 安装
 
+以下为 TiDB-Ansible 分支与 TiDB 版本的对应关系，版本选择可咨询官方 info@pingcap.com。
+
+    | TiDB-Ansible 分支 | TiDB 版本 | 备注 |
+    | ---------------- | --------- | --- |
+    | release-2.0 | 2.0 版本 | 最新 2.0 稳定版本，可用于生产环境。 |
+
 ### 下载官方 Binary
 
 CentOS 7+
 
 ```bash
 # 下载压缩包
-wget http://download.pingcap.org/tidb-binlog-latest-linux-amd64.tar.gz
-wget http://download.pingcap.org/tidb-binlog-latest-linux-amd64.sha256
+wget http://download.pingcap.org/tidb-binlog-kafka-linux-amd64.tar.gz
+wget http://download.pingcap.org/tidb-binlog-kafka-linux-amd64.sha256
 
 # 检查文件完整性，返回 ok 则正确
-sha256sum -c tidb-binlog-latest-linux-amd64.sha256
+sha256sum -c tidb-binlog-kafka-linux-amd64.sha256
 
 # 解开压缩包
-tar -xzf tidb-binlog-latest-linux-amd64.tar.gz
-cd tidb-binlog-latest-linux-amd64
+tar -xzf tidb-binlog-kafka-linux-amd64.tar.gz
+cd tidb-binlog-kafka-linux-amd64
 ```
 
 ### TiDB-Binlog 部署
@@ -75,14 +81,14 @@ cd tidb-binlog-latest-linux-amd64
 
     为了保证数据的完整性，在 Pump 运行 10 分钟左右后按顺序进行如下操作：
 
-    *  使用 [tidb-tools](https://github.com/pingcap/tidb-tools) 项目中的 [binlogctl](https://github.com/pingcap/tidb-tools/tree/master/tidb_binlog/binlogctl) 工具生成 Drainer 初次启动所需的 position
+    *  使用 [tidb-tools](https://github.com/pingcap/tidb-tools) 项目中的 [binlogctl](https://github.com/pingcap/tidb-tools/tree/master/tidb-binlog/binlogctl) 工具生成 Drainer 初次启动所需的 position
     *  全量备份，例如 mydumper 备份 TiDB
     *  全量导入备份到目标系统
     *  Kafka 版本 Drainer 启动的 savepoint 默认保存在下游 database tidb_binlog 下的 checkpoint 表中，如果 checkpoint 表中没有效的数据，可以通过设置 `initial-commit-ts` 启动 Drainer 从指定位置开始消费 - `bin/drainer --config=conf/drainer.toml --initial-commit-ts=${position}`
 
 * Drainer 输出为 pb，要在配置文件中设置如下参数：
 
-    ```
+    ```toml
     [syncer]
     db-type = "pb"
     disable-dispatch = true
@@ -93,7 +99,7 @@ cd tidb-binlog-latest-linux-amd64
 
 * Drainer 输出为 kafka，要在配置文件中设置如下参数：
 
-    ```
+    ```toml
     [syncer]
     db-type = "kafka"
 
@@ -103,7 +109,7 @@ cd tidb-binlog-latest-linux-amd64
     # kafka-version = "0.8.2.0"
     ```
 
-    输出到 kafka 的数据为按 ts 排好序的 protobuf 定义 binlog 格式，可以参考 [driver](https://github.com/pingcap/tidb-tools/tree/master/tidb_binlog/driver) 获取数据同步到下游。
+    输出到 kafka 的数据为按 ts 排好序的 protobuf 定义 binlog 格式，可以参考 [driver](https://github.com/pingcap/tidb-tools/tree/master/tidb-binlog/driver) 获取数据同步到下游。
 
 * Kafka 和 ZooKeeper 集群需要在部署 TiDB-Binlog 之前部署好。Kafka 需要 0.9 及以上版本。
 
@@ -119,6 +125,11 @@ cd tidb-binlog-latest-linux-amd64
 - `auto.create.topics.enable = true`：如果还没有创建 topic，Kafka 会在 broker 上自动创建 topic
 - `broker.id`：用来标识 Kafka 集群的必备参数，不能重复；如 `broker.id = 1`
 - `fs.file-max = 1000000`：Kafka 会使用大量文件和网络 socket，建议修改成 1000000，通过 `vi /etc/sysctl.conf` 进行修改
+- 修改以下配置为1G, 否则很容易出现事务修改数据较多导致单个消息过大写 kafka 失败
+    
+    * `message.max.bytes=1073741824`
+    * `replica.fetch.max.bytes=1073741824`
+    * `fetch.message.max.bytes=1073741824`
 
 #### 使用 tidb-ansible 部署 Pump
 
@@ -127,7 +138,7 @@ cd tidb-binlog-latest-linux-amd64
 
 配置样例:
 
-```
+```ini
 # binlog trigger
 enable_binlog = True
 # ZooKeeper address of Kafka cluster, example:
@@ -143,7 +154,7 @@ zookeeper_addrs = "192.168.0.11:2181,192.168.0.12:2181,192.168.0.13:2181"
 
 假设我们有三个 PD，三个 ZooKeeper，一个 TiDB，各个节点信息如下：
 
-```
+```ini
 TiDB="192.168.0.10"
 PD1="192.168.0.16"
 PD2="192.168.0.15"
@@ -208,13 +219,13 @@ ZK3="192.168.0.11"
 
     # Pump 对外提供服务的 RPC 地址("192.168.0.10:8250")
     advertise-addr = ""
-    
+
     # binlog 最大保留天数 (默认 7)，设置为 0 可永久保存
     gc = 7
- 
+
     # Pump 数据存储位置路径
     data-dir = "data.pump"
- 
+
     # ZooKeeper 地址，该选项从 ZooKeeper 中获取 Kafka 地址，若 Kafka 中配置了命名空间，则此处需同样配置
     # zookeeper-addrs = "192.168.0.11:2181,192.168.0.12:2181,192.168.0.13:2181"
     # 配置了命令空间的 ZooKeeper 地址配置示例
@@ -222,10 +233,10 @@ ZK3="192.168.0.11"
 
     # Pump 向 PD 发送心跳的间隔 (单位 秒)
     heartbeat-interval = 3
-      
+
     # PD 集群节点的地址
     pd-urls = "http://192.168.0.16:2379,http://192.168.0.15:2379,http://192.168.0.14:2379"
- 
+
     # unix socket 模式服务监听地址 (默认 unix:///tmp/pump.sock)
     socket = "unix:///tmp/pump.sock"
     ```

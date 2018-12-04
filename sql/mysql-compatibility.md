@@ -21,14 +21,18 @@ TiDB 支持包括跨行事务、JOIN 及子查询在内的绝大多数 MySQL 5.7
 * 事件
 * 自定义函数
 * 外键约束
-* 全文索引
-* 空间索引
+* 全文函数与索引
+* 空间函数与索引
 * 非 `utf8` 字符集
+* `BINARY` 之外的排序规则
 * 增加主键
 * 删除主键
 * SYS schema
 * MySQL 追踪优化器
+* XML 函数
 * X Protocol
+* Savepoints
+* 列级权限
 
 ## 与 MySQL 有差异的特性
 
@@ -95,7 +99,7 @@ TiDB 实现了 F1 的异步 Schema 变更算法，DDL 执行过程中不会阻�
 
 ### 事务模型
 
-TiDB 使用乐观事务模型，在执行 Update、Insert、Delete 等语句时，只有在提交过程中才会检查写写冲突，而不是像 MySQL 一样使用行锁来避免写写冲突。所以业务端在执行 SQL 语句后，需要注意检查 commit 的返回值，即使执行时没有出错，commit的时候也可能会出错。
+TiDB 使用乐观事务模型，在执行 `Update`、`Insert`、`Delete` 等语句时，只有在提交过程中才会检查写写冲突，而不是像 MySQL 一样使用行锁来避免写写冲突。类似的，诸如 `GET_LOCK()` 和 `RELEASE_LOCK()` 等函数以及 `SELECT .. FOR UPDATE` 之类的语句在 TiDB 和 MySQL 中的执行方式并不相同。所以业务端在执行 SQL 语句后，需要注意检查 commit 的返回值，即使执行时没有出错，commit 的时候也可能会出错。
 
 ### 大事务
 
@@ -104,6 +108,28 @@ TiDB 使用乐观事务模型，在执行 Update、Insert、Delete 等语句时�
 * 每个键值对不超过 6MB
 * 键值对的总数不超过 300,000
 * 键值对的总大小不超过 100MB
+
+### 小事务
+
+由于 TiDB 中的每个事务都需要跟 PD leader 进行两次 round trip，TiDB 中的小事务相比于 MySQL 中的小事务延迟更高。以如下的 query 为例，用显示事务代替 `auto_commit`，可优化该 query 的性能。
+
+```sql
+# 使用 auto_commit 的原始版本
+UPDATE my_table SET a='new_value' WHERE id = 1; 
+UPDATE my_table SET a='newer_value' WHERE id = 2;
+UPDATE my_table SET a='newest_value' WHERE id = 3;
+
+# 优化后的版本
+START TRANSACTION;
+UPDATE my_table SET a='new_value' WHERE id = 1; 
+UPDATE my_table SET a='newer_value' WHERE id = 2;
+UPDATE my_table SET a='newest_value' WHERE id = 3;
+COMMIT;
+```
+
+### 单线程的 workload
+
+由于 TiDB 中的 workload 是分布式的，TiDB 中单线程的 workload 性能相比于单实例部署的 MySQL 较低。这与 TiDB 中的小事务延迟较高的情況类似。
 
 ### Load data
 
@@ -140,6 +166,15 @@ Create Table: CREATE TABLE `t1` (
 ```
 
 从架构上讲，TiDB 确实支持类似 MySQL 的存储引擎抽象，在启动 TiDB（通常是 `tikv`）时 [`--store`](../sql/server-command-option.md#--store) 选项指定的引擎中创建用户表。
+
+### SQL 模式
+
+TiDB 支持 MySQL 5.7 中 **绝大多数的 SQL 模式**，以下几种模式除外：
+
+- TiDB 暂不支持 `ALLOW_INVALID_DATES` 模式。详情参见 [TiDB #8263](https://github.com/pingcap/tidb/issues/8263)。
+- TiDB 不支持兼容模式（例如 `ORACLE` 和 `POSTGRESQL`）。MySQL 5.7 已弃用兼容模式，MySQL 8.0 已移除兼容模式。
+- TiDB 中的 `ONLY_FULL_GROUP_BY` 与 MySQL 5.7 相比有细微的 [语义差别](../sql/aggregate-group-by-functions.md#与-mysql-的区别)，此问题日后将予以解决。
+- `NO_DIR_IN_CREATE` 和 `NO_ENGINE_SUBSTITUTION` 这两种 SQL 模式用于解决兼容问题，但并不适用于 TiDB。
 
 ### EXPLAIN
 

@@ -7,7 +7,7 @@ category: compatibility
 
 TiDB 在 MySQL 的基础上，定义了一些专用的系统变量和语法用来优化性能。
 
-## System Variable
+## 系统变量
 
 变量可以通过 SET 语句设置，例如
 
@@ -145,7 +145,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 默认值：4
 
-这个变量用来设置 Projection 算子的并发度。 
+这个变量用来设置 Projection 算子的并发度。
 
 ### tidb_hashagg_partial_concurrency
 
@@ -237,7 +237,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 MergeJoin 算子的内存使用阈值。
 如果 MergeJoin 算子执行过程中使用的内存空间超过该阈值，会触发 TiDB 启动配置文件中 OOMAction 项所指定的行为。
@@ -246,7 +246,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 Sort 算子的内存使用阈值。
 如果 Sort 算子执行过程中使用的内存空间超过该阈值，会触发 TiDB 启动配置文件中 OOMAction 项所指定的行为。
@@ -255,7 +255,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 TopN 算子的内存使用阈值。
 如果 TopN 算子执行过程中使用的内存空间超过该阈值，会触发 TiDB 启动配置文件中 OOMAction 项所指定的行为。
@@ -264,7 +264,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 IndexLookupReader 算子的内存使用阈值。
 
@@ -274,7 +274,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 IndexLookupJoin 算子的内存使用阈值。
 如果 IndexLookupJoin 算子执行过程中使用的内存空间超过该阈值，会触发 TiDB 启动配置文件中 OOMAction 项所指定的行为。
@@ -283,7 +283,7 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 作用域：SESSION
 
-默认值：32 GB 
+默认值：32 GB
 
 这个变量用来设置 NestedLoopApply 算子的内存使用阈值。
 如果 NestedLoopApply 算子执行过程中使用的内存空间超过该阈值，会触发 TiDB 启动配置文件中 OOMAction 项所指定的行为。
@@ -363,12 +363,11 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 可设置为 `NO_PRIORITY`、`LOW_PRIORITY`、`DELAYED` 或 `HIGH_PRIORITY`。
 
-## Optimizer Hint
+## Optimizer Hints
 
-TiDB 在 MySQL 的 Optimizer Hint 语法上，增加了一些 TiDB 专有的 Hint 语法, 使用这些 Hint 的时候，TiDB 优化器会尽量使用指定的算法，在某些场景下会比默认算法更优。
+TiDB 支持 Optimizer Hints 语法，它基于 MySQL 5.7 中介绍的类似 comment 的语法，例如 `/*+ TIDB_XX(t1, t2) */`。当 TiDB 优化器选择的不是最优查询计划时，建议使用 Optimizer Hints。
 
-由于 hint 包含在类似 `/*+ xxx */` 的 comment 里，MySQL 客户端在 5.7.7 之前，会默认把 comment 清除掉，如果需要在旧的客户端使用 hint，需要在启动客户端时加上
-`--comments` 选项，例如 `mysql -h 127.0.0.1 -P 4000 -uroot --comments`
+> **注意**：MySQL 命令行客户端在 5.7.7 版本之前默认清除了 Optimizer Hints。如果需要在这些早期版本的客户端中使用 `Hint` 语法，需要在启动客户端时加上 `--comments` 选项，例如 `mysql -h 127.0.0.1 -P 4000 -uroot --comments`。
 
 ### TIDB_SMJ(t1, t2)
 
@@ -381,7 +380,7 @@ TiDB 在 MySQL 的 Optimizer Hint 语法上，增加了一些 TiDB 专有的 Hin
 
 ```SELECT /*+ TIDB_INLJ(t1, t2) */ * from t1，t2 where t1.id = t2.id```
 
-提示优化器使用 Index Nested Loop Join 算法，这个算法可能会在某些场景更快，消耗更少系统资源，有的场景会更慢，消耗更多系统资源。对于外表经过 WHERE 条件过滤后结果集较小（小于 1 万行）的场景，可以尝试使用。`TIDB_INLJ()`中的参数是建立查询计划时，驱动表（外表）的候选表。即`TIDB_INLJ(t1)`只会考虑使用t1作为驱动表构建查询计划。
+提示优化器使用 Index Nested Loop Join 算法，这个算法可能会在某些场景更快，消耗更少系统资源，有的场景会更慢，消耗更多系统资源。对于外表经过 WHERE 条件过滤后结果集较小（小于 1 万行）的场景，可以尝试使用。`TIDB_INLJ()` 中的参数是建立查询计划时，内表的候选表。即 `TIDB_INLJ(t1)` 只会考虑使用 t1 作为内表构建查询计划。
 
 ### TIDB_HJ(t1, t2)
 
@@ -414,3 +413,31 @@ DELETE 语句示例：```DELETE FROM t WHERE _tidb_rowid = 1;```
 CREATE TABLE 语句示例：`CREATE TABLE t (c int) SHARD_ROW_ID_BITS = 4;`
 
 ALTER TABLE 语句示例：`ALTER TABLE t SHARD_ROW_ID_BITS = 4;`
+
+## tidb_slow_log_threshold
+
+作用域：SESSION
+
+默认值：300
+
+输出慢日志的耗时阈值。当查询大于这个值，就会当做是一个慢查询，输出到慢查询日志。默认为 300ms。
+
+示例：
+
+```sql
+set tidb_slow_log_threshold = 200
+```
+
+## tidb_query_log_max_len
+
+作用域：SESSION
+
+默认值：2048 (bytes)
+
+最长的 SQL 输出长度。当语句的长度大于 query-log-max-len，将会被截断输出。
+
+示例：
+
+```sql
+set tidb_query_log_max_len = 20
+```
