@@ -339,6 +339,6 @@ category: monitoring
     - PD heartbeats：发送给 PD 的心跳个数
     - PD validate peers：通过 PD 验证 TiKV 的 peer 有效的个数
 
-## 图例
+<!-- ## 图例 -->
 
-![TiKV Dashboard](../media/tikv_dashboard.png)
+<!-- ![TiKV Dashboard](../media/tikv_dashboard.png) -->
