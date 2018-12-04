@@ -69,7 +69,7 @@ category: monitoring
     - Vcores：CPU 核心数量
     - Memory：内存总大小
     - CPU Usage：CPU 使用率，最大为 100%
-    - Load [1m]：1 分钟的负载情况
+    - Load `[1m]`：1 分钟的负载情况
     - Memory Available：剩余内存大小
     - Network Traffic：网卡流量统计
     - TCP Retrans：网络监控，TCP 相关信息统计
