@@ -20,9 +20,9 @@ jobs:
           name: "Merge Makedown Files"
           command: python3 scripts/merge_by_toc.py
 
-      - run:
-          name: "Generate PDF"
-          command: scripts/generate_pdf.sh
+    #   - run:
+    #       name: "Generate PDF"
+    #       command: scripts/generate_pdf.sh
 
       - deploy:
           name: "Publish PDF"
