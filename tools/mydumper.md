@@ -12,10 +12,9 @@ category: tools
 
 [下载 Binary](http://download.pingcap.org/tidb-enterprise-tools-latest-linux-amd64.tar.gz)。
 
-## 相比于普通的 mydumper，此工具有哪些改进之处?
+## 相比于普通的 mydumper，此工具有哪些改进之处？
 
-+ 使用 `tidb_snapshot` 而非 `FLUSH TABLES WITH READ LOCK` 提供备份一致性 
-+ `INSERT` 语句中包含隐藏的 `_tidb_rowid` 列
++ 使用 `tidb_snapshot` 而非 `FLUSH TABLES WITH READ LOCK` 提供备份一致性
 + [允许设置](../op-guide/history-read.md#操作流程) `tidb_snapshot` 的值（即可备份不同时间点的数据）  
 
 ### 新添参数
@@ -25,6 +24,13 @@ category: tools
                        默认值：当前 TSO（SHOW MASTER STATUS 输出的 UniqueID）
                        此参数可设为 TSO 时间或有效的 datetime 时间。例如：-z "2016-10-08 16:45:26"
 ```
+
+### 需要的权限
+
+- SELECT
+- RELOAD
+- LOCK TABLES
+- REPLICATION CLIENT
 
 ### 使用举例
 

@@ -339,11 +339,19 @@ set @@global.tidb_distsql_scan_concurrency = 10
 
 ### tidb_ddl_reorg_worker_cnt
 
-作用域: SESSION | GLOBAL
+作用域: GLOBAL
 
 默认值：16
 
 这个变量用来设置 DDL 操作 re-organize 阶段的并发度。
+
+### tidb_ddl_reorg_batch_size
+
+作用域: GLOBAL
+
+默认值：1024
+
+这个变量用来设置 DDL 操作 re-organize 阶段的 batch size。比如 Add Index 操作，需要回填索引数据，通过并发 tidb_ddl_reorg_worker_cnt 个 worker 一起回填数据，每个 worker 以 batch 为单位进行回填。如果 Add Index 时有较多 Update 操作或者 Replace 等更新操作，batch size 越大，事务冲突的概率也会越大，此时建议调小 batch size 的值，最小值是 32。在没有事务冲突的情况下，batch size 可设为较大值，最大值是 10240，这样回填数据的速度更快，但是 TiKV 的写入压力也会变大。
 
 ### tidb_ddl_reorg_priority
 
@@ -371,48 +379,43 @@ TiDB 支持 Optimizer Hints 语法，它基于 MySQL 5.7 中介绍的类似 comm
 
 ### TIDB_SMJ(t1, t2)
 
-```SELECT /*+ TIDB_SMJ(t1, t2) */ * from t1，t2 where t1.id = t2.id```
+```sql
+SELECT /*+ TIDB_SMJ(t1, t2) */ * from t1，t2 where t1.id = t2.id
+```
 
 提示优化器使用 Sort Merge Join 算法，这个算法通常会占用更少的内存，但执行时间会更久。
 当数据量太大，或系统内存不足时，建议尝试使用。
 
 ### TIDB_INLJ(t1, t2)
 
-```SELECT /*+ TIDB_INLJ(t1, t2) */ * from t1，t2 where t1.id = t2.id```
+```sql
+SELECT /*+ TIDB_INLJ(t1, t2) */ * from t1，t2 where t1.id = t2.id
+```
 
 提示优化器使用 Index Nested Loop Join 算法，这个算法可能会在某些场景更快，消耗更少系统资源，有的场景会更慢，消耗更多系统资源。对于外表经过 WHERE 条件过滤后结果集较小（小于 1 万行）的场景，可以尝试使用。`TIDB_INLJ()` 中的参数是建立查询计划时，内表的候选表。即 `TIDB_INLJ(t1)` 只会考虑使用 t1 作为内表构建查询计划。
 
 ### TIDB_HJ(t1, t2)
 
-```SELECT /*+ TIDB_HJ(t1, t2) */ * from t1，t2 where t1.id = t2.id```
+```sql
+SELECT /*+ TIDB_HJ(t1, t2) */ * from t1，t2 where t1.id = t2.id
+```
+
 提示优化器使用 Hash Join 算法，这个算法多线程并发执行，执行速度较快，但会消耗较多内存。
-
-
-## _tidb_rowid
-
-这个是一个 TiDB 的隐藏列，代表隐式的 ROW ID 的列名，只存在于 PK 非整数或没有 PK 的表上，可以进行增减改查的操作。
-
-SELECT 语句示例：```SELECT *, _tidb_rowid from t;```
-
-INSERT 语句示例：```INSERT t (c, _tidb_rowid) VALUES (1, 1);```
-
-UPDATE 语句示例：```UPDATE t SET c = c + 1 WHERE _tidb_rowid = 1;```
-
-DELETE 语句示例：```DELETE FROM t WHERE _tidb_rowid = 1;```
 
 ## SHARD_ROW_ID_BITS
 
-这个 TABLE OPTION 是用来设置隐式 _tidb_rowid 的分片数量的 bit 位数。
+对于 PK 非整数或没有 PK 的表，TiDB 会使用一个隐式的自增 rowid，大量 `INSERT` 时会把数据集中写入单个 Region，造成写入热点。
 
-对于 PK 非整数或没有 PK 的表，TiDB 会使用一个隐式的自增 rowid，大量 INSERT 时会把数据集中写入单个 region，造成写入热点。
-通过设置 SHARD_ROW_ID_BITS 可以把 rowid 打散写入多个不同的 region，缓解写入热点问题。
-但是设置的过大会造成 RPC 请求数放大，增加 CPU 和网络开销。
+通过设置 `SHARD_ROW_ID_BITS`，可以把 rowid 打散写入多个不同的 Region，缓解写入热点问题。但是设置的过大会造成 RPC 请求数放大，增加 CPU 和网络开销。
 
-`SHARD_ROW_ID_BITS = 4` 代表 16 个分片， `SHARD_ROW_ID_BITS = 6` 表示 64 个分片，`SHARD_ROW_ID_BITS = 0` 就是默认值 1 个分片 。
+- `SHARD_ROW_ID_BITS = 4` 表示 16 个分片
+- `SHARD_ROW_ID_BITS = 6` 表示 64 个分片
+- `SHARD_ROW_ID_BITS = 0` 表示默认值 1 个分片
 
-CREATE TABLE 语句示例：`CREATE TABLE t (c int) SHARD_ROW_ID_BITS = 4;`
+语句示例：
 
-ALTER TABLE 语句示例：`ALTER TABLE t SHARD_ROW_ID_BITS = 4;`
+- `CREATE TABLE`：`CREATE TABLE t (c int) SHARD_ROW_ID_BITS = 4;`
+- `ALTER TABLE`：`ALTER TABLE t SHARD_ROW_ID_BITS = 4;`
 
 ## tidb_slow_log_threshold
 

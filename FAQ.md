@@ -264,6 +264,8 @@ TiDB 支持部署和运行在 Intel x86-64 架构的 64 位通用硬件服务器
 
 2）如果出现了慢查询，可以从 Grafana 监控定位到出现慢查询的 tidb-server 以及时间点，然后在对应节点查找日志中记录的 SQL 信息。
 
+3）除了日志，还可以通过 `admin show slow` 命令查看，详情可参考 [`admin show slow` 命令](sql/slow-query.md#admin-show-slow-命令)。
+
 #### 2.2.5 首次部署 TiDB 集群时，没有配置 tikv 的 Label 信息，在后续如何添加配置 Label？
 
 TiDB 的 Label 设置是与集群的部署架构相关的，是集群部署中的重要内容，是 PD 进行全局管理和调度的依据。如果集群在初期部署过程中没有设置 Label，需要在后期对部署结构进行调整，就需要手动通过 PD 的管理工具 pd-ctl 来添加 location-labels 信息，例如：`config set location-labels "zone, rack, host"`（根据实际的 label 层级名字配置）。
@@ -636,6 +638,10 @@ TiKV 支持单独进行接口调用，理论上也可以起个实例做为 Cache
 
 这是磁盘空间不足导致的，需要加节点或者扩大磁盘空间。
 
+#### 3.4.21 为什么 TiKV 容易出现 OOM？
+
+TiKV 的内存占用主要来自于 RocksDB 的 block-cache，默认为系统总内存的 40%。当 TiKV 容易出现 OOM 时，检查 `block-cache-size` 配置是否过高。还需要注意，当单机部署了多个 TiKV 实例时，需要显式地配置该参数，以防止多个实例占用过多系统内存导致 OOM。
+
 ### 3.5 TiDB 测试
 
 #### 3.5.1 TiDB Sysbench 基准测试结果如何？
@@ -676,20 +682,23 @@ loader 的 -t 参数可以根据 TiKV 的实例个数以及负载进行评估调
 #### 4.1.2 Loader
 
 参见 [Loader 使用文档](tools/loader.md)。
- 
+
 #### 4.1.3 如何将一个运行在 MySQL 上的应用迁移到 TiDB 上？
 
-TiDB 支持绝大多数 MySQL 语法，一般不需要修改代码。我们提供了一个[检查工具](https://github.com/pingcap/tidb-tools/tree/master/checker)，用于检查 MySQL 中的 Schema 是否和 TiDB 兼容。
+TiDB 支持绝大多数 MySQL 语法，一般不需要修改代码。
 
 #### 4.1.4 不小心把 MySQL 的 user 表导入到 TiDB 了，或者忘记密码，无法登陆，如何处理？
 
 重启 TiDB 服务，配置文件中增加 `-skip-grant-table=true` 参数，无密码登陆集群后，可以根据情况重建用户，或者重建 mysql.user 表，具体表结构搜索官网。
 
-#### 4.1.5 如何导出 TiDB 数据？
+#### 4.1.5 在 Loader 运行的过程中，TiDB 可以对外提供服务吗？
+该操作进行逻辑插入，TiDB 仍可对外提供服务，但不要执行相关 DDL 操作。
+
+#### 4.1.6 如何导出 TiDB 数据？
 
 TiDB 目前暂时不支持 `select into outfile`，可以通过以下方式导出 TiDB 数据：参考 [MySQL 使用 mysqldump 导出某个表的部分数据](http://blog.csdn.net/xin_yu_xin/article/details/7574662)，使用 mysqldump 加 where 条件导出，使用 MySQL client 将 select 的结果输出到一个文件。
 
-#### 4.1.6 DB2、Oracle 数据库如何迁移到 TiDB？
+#### 4.1.7 如何从 DB2、Oracle 数据库迁移到 TiDB？
 
 DB2、Oracle 到 TiDB 数据迁移（增量+全量），通常做法有：
 
@@ -700,7 +709,7 @@ DB2、Oracle 到 TiDB 数据迁移（增量+全量），通常做法有：
 
 目前看来 OGG 最为合适。
 
-#### 4.1.7 用 Sqoop 批量写入 TiDB 数据，虽然配置了 `--batch` 选项，但还是会遇到 `java.sql.BatchUpdateExecption:statement count 5001 exceeds the transaction limitation` 的错误，该如何解决？
+#### 4.1.8 用 Sqoop 批量写入 TiDB 数据，虽然配置了 `--batch` 选项，但还是会遇到 `java.sql.BatchUpdateExecption:statement count 5001 exceeds the transaction limitation` 的错误，该如何解决？
 
 - 在 Sqoop 中，`--batch` 是指每个批次提交 100 条 statement，但是默认每个 statement 包含 100 条 SQL 语句，所以此时 100 * 100 = 10000 条 SQL 语句，超出了 TiDB 的事务限制 5000 条，可以增加选项 `-Dsqoop.export.records.per.statement=10 ` 来解决这个问题，完整的用法如下：
 
@@ -716,6 +725,9 @@ sqoop export \
 ```
 
 - 也可以选择增大 tidb 的单个事物语句数量限制，不过这个会导致内存上涨。
+
+#### 4.1.9 TiDB 有像 Oracle 那样的 Flashback Query 功能么，DDL 支持么？
+有，也支持 DDL。详细参考 [TiDB 历史数据回溯](op-guide/history-read.md)。
 
 ### 4.2 在线数据同步
 
@@ -756,6 +768,10 @@ sqoop export \
 1）把 syncer.meta 数据放到比较安全的磁盘上，例如磁盘做好 raid1；
 
 2）可以根据 Syncer 定期上报到 Prometheus 的监控信息来还原出历史同步的位置信息，该方法的位置信息在大量同步数据时由于延迟会可能不准确。
+
+##### 4.2.1.7  Syncer 下游 TiDB 数据和 MySQL 数据不一致，DML 会退出么？
+- 上游 MySQL 中存在数据，下游 TiDB 中该数据不存在，上游 MySQL 执行 `UPDATE` 或 `DELETE`（更新/删除）该条数据的操作时，Syncer 同步过程即不会报错退出也没有该条数据。
+- 下游有主键索引或是唯一索引冲突时，执行 `UPDATE` 会退出，执行 `INSERT` 不会退出。
 
 ### 4.3 业务流量迁入
 
@@ -837,9 +853,20 @@ Count 就是暴力扫表，提高并发度能显著的提升速度，修改并�
 - 测试大数据量的 count。
 - 调优 TiKV 配置，可以参考[性能调优](op-guide/tune-tikv.md)。
 
-#### 5.1.3 查看添加索引进度？
+#### 5.1.3 查看当前 DDL 的进度？
 
-通过 `admin show ddl` 查看当前添加索引 job。
+通过 `admin show ddl` 查看当前 job 进度。操作如下：
+
+```sql
+tidb> admin show ddl\G;
+*************************** 1. row ***************************
+  SCHEMA_VER: 140
+       OWNER: 1a1c4174-0fcd-4ba0-add9-12d08c4077dc
+RUNNING_JOBS: ID:121, Type:add index, State:running, SchemaState:write reorganization, SchemaID:1, TableID:118, RowCount:77312, ArgLen:0, start time: 2018-12-05 16:26:10.652 +0800 CST, Err:<nil>, ErrCount:0, SnapshotVersion:404749908941733890
+     SELF_ID: 1a1c4174-0fcd-4ba0-add9-12d08c4077dc
+```
+
+从上面操作结果可知，当前正在处理的是 `add index` 操作。且从 `RUNNING_JOBS` 列的 `RowCount` 字段可以知道当前 `add index` 操作已经添加了 77312 行索引。
 
 #### 5.1.4 如何查看 DDL job？
 
@@ -896,9 +923,12 @@ TiDB 中以 Region 分片来管理数据库，通常来讲，TiDB 的热点指�
 
 TiDB 使用 Prometheus + Grafana 组成 TiDB 数据库系统的监控系统，用户在 Grafana 上通过 dashboard 可以监控到 TiDB 的各类运行指标，包括系统资源的监控指标，包括客户端连接与 SQL 运行的指标，包括内部通信和 Region 调度的指标，通过这些指标，可以让数据库管理员更好的了解到系统的运行状态，运行瓶颈等内容。在监控指标的过程中，我们按照 TiDB 不同的模块，分别列出了各个模块重要的指标项，一般用户只需要关注这些常见的指标项。具体指标请参见[官方文档](op-guide/dashboard-overview-info.md)。
 
-#### 7.2.2 Prometheus 监控数据默认 1 个月自动清除一次，可以自己设定成 2 个月或者手动删除吗？
+#### 7.2.2 Prometheus 监控数据默认 15 天自动清除一次，可以自己设定成 2 个月或者手动删除吗？
 
 可以的，在 Prometheus 启动的机器上，找到启动脚本，然后修改启动参数，然后重启 Prometheus 生效。
+```config
+--storage.tsdb.retention="60d"
+```
 
 #### 7.2.3 Region Health 监控项
 

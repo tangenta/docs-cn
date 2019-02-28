@@ -39,7 +39,8 @@ SELECT
 | --------------------- | -------------------------------------------------- |
 |`ALL`、`DISTINCT`、`DISTINCTROW` | 查询结果集中可能会包含重复值。指定 DISTINCT/DISTINCTROW 则在查询结果中过滤掉重复的行；指定 ALL 则列出所有的行。默认为 ALL。|
 |`HIGH_PRIORITY` | 该语句为高优先级语句，TiDB 在执行阶段会优先处理这条语句|
-|`SQL_CACHE`、`SQL_NO_CACHE`、`SQL_CALC_FOUND_ROWS` | TiDB 出于兼容性解析这三个语法，但是不做任何处理|
+|`SQL_CALC_FOUND_ROWS` | TiDB 出于兼容性解析这个语法，但是不做任何处理|
+|`SQL_CACHE`、`SQL_NO_CACHE` | 是否把请求结果缓存到 TiKV (RocksDB) 的 `BlockCache` 中。对于一次性的大数据量的查询，比如 `count(*)` 查询，为了避免冲掉 `BlockCache` 中用户的热点数据，建议填上 `SQL_NO_CACHE` |
 |`STRAIGHT_JOIN`|`STRAIGHT_JOIN` 会强制优化器按照 `FROM` 子句中所使用的表的顺序做联合查询。当优化器选择的 Join 顺序并不优秀时，你可以使用这个语法来加速查询的执行|
 |`select_expr` | 投影操作列表，一般包括列名、表达式，或者是用 '\*' 表示全部列|
 |`FROM table_references` | 表示数据来源，数据来源可以是一个表（`select * from t;`）或者是多个表 (`select * from t1 join t2;`) 或者是0个表 (`select 1+1 from dual;`, 等价于 `select 1+1;`)|
@@ -123,10 +124,10 @@ INSERT INTO tbl_name (a,c) VALUES(1,2),(4,5),(7,8);
 通过赋值列表指定插入的数据，例如：
 
 ```sql
-INSERT INTO tbl_name a=1, b=2, c=3;
+INSERT INTO tbl_name SET a=1, b=2, c=3;
 ```
 
-这种方式每次只能插入一行数据，每列的值通过赋值列表制定。
+这种方式每次只能插入一行数据，每列的值通过赋值列表指定。
 
 * Select Statement
 
@@ -152,6 +153,7 @@ Delete 语句用于删除数据库中的数据，TiDB 兼容 MySQL Delete 语句
 这种语法用于删除的数据只会涉及一个表的情况。
 
 ### 语法定义
+
 ```sql
 DELETE [LOW_PRIORITY] [QUICK] [IGNORE] FROM tbl_name
     [WHERE where_condition]

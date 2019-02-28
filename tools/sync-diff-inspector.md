@@ -6,6 +6,7 @@ category: tools
 # sync-diff-inspector 用户文档
 
 ## sync-diff-inspector 简介
+
 sync-diff-inspector 是一个用于校验 MySQL／TiDB 中两份数据是否一致的工具，该工具提供了修复数据的功能（适用于修复少量不一致的数据）。
 
 主要功能：
@@ -17,9 +18,10 @@ sync-diff-inspector 是一个用于校验 MySQL／TiDB 中两份数据是否一�
 
 GitHub 地址：[sync-diff-inspector](https://github.com/pingcap/tidb-tools/tree/master/sync_diff_inspector)
 
-下载地址：[sync-diff-inspector-linux-amd64.tar.gz](https://download.pingcap.org/sync-diff-inspector-linux-amd64.tar.gz)
+下载地址：[tidb-enterprise-tools-latest-linux-amd64](https://download.pingcap.org/tidb-enterprise-tools-latest-linux-amd64.tar.gz)
 
 ## sync-diff-inspector 的使用
+
 ### 通用配置文件说明
 
 ``` toml
@@ -38,9 +40,6 @@ check-thread-count = 4
 # 抽样检查的比例，如果设置为 100 则检查全部数据
 sample-percent = 100
 
-# 是否使用 TiDB 的隐藏列“_tidb_rowid”进行对比，当对比的表没有主键／唯一键且对比的两个数据库都为 TiDB 时可以开启该配置
-use-rowid = false
-
 # 通过计算 chunk 的 checksum 来对比数据，如果不开启则逐行对比数据
 use-checksum = true
 
@@ -53,6 +52,17 @@ ignore-struct-check = false
 # 保存用于修复数据的 sql 的文件名称
 fix-sql-file = "fix.sql"
 
+# 如果需要使用 TiDB 的统计信息划分 chunk，需要设置 tidb-instance-id，值为 source-db 或者 target-db 中配置的 instance-id 的值
+# tidb-instance-id = "target-1"
+
+# 如果需要对比大量的不同库名或者表名的表的数据，可以通过 table-rule 来设置映射关系。可以只配置 schema 或者 table 的映射关系，也可以都配置
+#[[table-rules]]
+# schema-pattern 和 table-pattern 支持正则表达式
+#schema-pattern = "test_*"
+#table-pattern = "t_*"
+#target-schema = "test"
+#target-table = "t"
+
 # 配置需要对比的目标数据库中的表
 [[check-tables]]
 # 目标库中数据库的名称
@@ -62,8 +72,10 @@ schema = "test"
 tables = ["test1", "test2", "test3"]
 
 # 支持使用正则表达式配置检查的表，需要以‘~’开始，
-# 例如：下面的配置会检查所有表名以‘test’为前缀的表
-# tables = ["~test*"]
+# 下面的配置会检查所有表名以‘test’为前缀的表
+# tables = ["~^test.*"]
+# 下面的配置会检查配置库中所有的表
+# tables = ["~^"]
 
 # 对部分表进行特殊的配置，配置的表必须包含在 check-tables 中
 [[table-config]]
@@ -134,7 +146,8 @@ password = ""
 # snapshot = "2016-10-08 16:45:26"
 ```
 
-### 分库分表场景下数据对比的配置示例：
+### 分库分表场景下数据对比的配置示例
+
 假设有两个 MySQL 实例，使用同步工具同步到一个 TiDB 中，场景如图所示：
 
 ![shard-table-sync](../media/shard-table-sync.png)
@@ -168,19 +181,19 @@ is-sharding = true
 
 # 源数据表的配置
 [[table-config.source-tables]]
-# 源数据库实例的 id 
+# 源数据库实例的 id
 instance-id = "source-1"
 schema = "test"
 table  = "test1"
 
 [[table-config.source-tables]]
-# 源数据库实例的 id 
+# 源数据库实例的 id
 instance-id = "source-1"
 schema = "test"
 table  = "test2"
 
 [[table-config.source-tables]]
-# 源数据库实例的 id 
+# 源数据库实例的 id
 instance-id = "source-2"
 schema = "test"
 table  = "test3"
@@ -207,11 +220,21 @@ host = "127.0.0.3"
 port = 4000
 user = "root"
 password = ""
+instance-id = "target-1"
 ```
 
 ### 运行 sync-diff-inspector
+
 执行如下命令：
 
 ``` bash
 ./bin/sync_diff_inspector --config=./config.toml
 ```
+
+该命令最终会在日志中输出一个检查报告，说明每个表的检查情况。如果数据存在不一致的情况，sync-diff-inspector 会生成 SQL 修复不一致的数据，并将这些 SQL 语句保存到 `fix.sql` 文件中。
+
+### 注意
+
+* TiDB 使用的 collation 为 utf8_bin，如果对 MySQL 和 TiDB 的数据进行对比，需要注意 MySQL 中表的 collation 设置。如果表的主键／唯一键为 varchar 类型，且 MySQL 中 collation 设置与 TiDB 不同，可能会因为排序问题导致最终校验结果不正确，需要在 sync-diff-inspector 的配置文件中增加 collation 设置。
+* 如果设置了 `tidb-instance-id` 使用 TiDB 的统计信息来划分 chunk，需要尽量保证统计信息精确，可以在*业务空闲期*手动执行 `analyze table {table_name}`。
+* table-rule 的规则需要特殊注意，例如设置了 `schema-pattern="test1"`，`target-schema="test2"`，会对比 source 中的 `test1` 库和 target 中的 `test2` 库；如果 source 中有 `test2` 库，该库也会和 target 中的 `test2` 库进行对比。
