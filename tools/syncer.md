@@ -34,7 +34,7 @@ binlog-pos = 930143241
 binlog-gtid = "2bfabd22-fff7-11e6-97f7-f02fa73bcb01:1-23,61ccbb5d-c82d-11e6-ac2e-487b6bd31bf7:1-4"
 ```
 
-> **注：** 
+> **注意：**
 >
 > - `syncer.meta` 只需要第一次使用的时候配置，后续 Syncer 同步新的 binlog 之后会自动将其更新到最新的 position。
 > - 如果使用 binlog position 同步则只需要配置 binlog-name binlog-pos; 使用 gtid 同步则需要设置 gtid，且启动 Syncer 时带有 `--enable-gtid`。
@@ -52,7 +52,7 @@ Usage of syncer:
   -auto-fix-gtid
       当 mysql master/slave 切换时，自动修复 gtid 信息；默认 false
   -b int
-      batch 事务大小 (默认 10)
+      batch 事务大小 (默认 100)
   -c int
       syncer 处理 batch 线程数 (默认 16)
   -config string
@@ -95,10 +95,10 @@ server-id = 101
 ## meta 文件地址
 meta = "./syncer.meta"
 worker-count = 16
-batch = 1000
+batch = 100
 flavor = "mysql"
 
-## pprof 调试地址，Prometheus 也可以通过该地址拉取 Syncer metrics
+## Prometheus 可以通过该地址拉取 Syncer metrics，也是 Syncer 的 pprof 调试地址
 status-addr = ":8271"
 
 ## 如果设置为 true，Syncer 遇到 DDL 语句时就会停止退出
@@ -352,6 +352,12 @@ target-table = "order_2017"
 
     - 5.5 < MySQL 版本 < 5.8
     - MariaDB 版本 >= 10.1.2（更早版本的 binlog 部分字段类型格式与 MySQL 不一致）
+    
+    > **注意：**
+    >
+    > 如果上游 MySQL/MariaDB server 间构成主从复制结构，则
+    > - 5.7.1 < MySQL 版本 < 5.8
+    > - MariaDB 版本 >= 10.1.3
 
 2. 检查源库 `server-id`。
 
@@ -480,6 +486,10 @@ target-table = "order_2017"
     +---------------+-----------------------------------------------------------------------------------+
     1 row in set (0.01 sec)
     ```
+6. 检查字符集。
+
+    TiDB 和 MySQL 的字符集的兼容性不同，详见 [TiDB 支持的字符集](/sql/character-set-support.md)。
+
 
 ## 监控方案
 
